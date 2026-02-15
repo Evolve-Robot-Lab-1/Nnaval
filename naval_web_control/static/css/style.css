@@ -306,6 +306,19 @@ main {
     background-color: var(--primary-color);
 }
 
+.btn-mode {
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    background-color: var(--secondary-color);
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.btn-mode.mode-turn {
+    background-color: var(--warning-color);
+    color: #111;
+}
+
 /* ============================================================
    Speed Buttons
    ============================================================ */

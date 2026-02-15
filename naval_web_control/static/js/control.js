@@ -29,6 +29,7 @@ let tiltFrontPub = null;
 let tiltRearPub = null;
 let currentSpeed = 1;
 let estopActive = false;
+let strafeMode = true;  // true=strafe (lateral), false=turn (rotate)
 let activeKeys = new Set();
 let camBaseUrl = '';
 
@@ -246,12 +247,16 @@ function stopMoving() {
     sendVelocity(0, 0, 0);
 }
 
+function getStrafeVelocity(side) {
+    // side: 1=left, -1=right
+    if (strafeMode) return [0, side, 0];
+    return [0, 0, side];  // turn mode: rotate instead
+}
+
 function setupMovementButtons() {
     const moves = {
         'btn-forward':      [1, 0, 0],
         'btn-backward':     [-1, 0, 0],
-        'btn-strafe-left':  [0, 1, 0],
-        'btn-strafe-right': [0, -1, 0],
         'btn-rot-left':     [0, 0, 1],
         'btn-rot-right':    [0, 0, -1],
         'btn-fwd-left':     [1, 1, 0],
@@ -277,7 +282,41 @@ function setupMovementButtons() {
         btn.addEventListener('touchcancel', stopMoving);
     });
 
+    // Strafe buttons: respect strafe/turn mode
+    const strafeLeft = document.getElementById('btn-strafe-left');
+    const strafeRight = document.getElementById('btn-strafe-right');
+
+    if (strafeLeft) {
+        strafeLeft.addEventListener('mousedown', () => { const v = getStrafeVelocity(1); sendVelocity(...v); });
+        strafeLeft.addEventListener('mouseup', stopMoving);
+        strafeLeft.addEventListener('mouseleave', stopMoving);
+        strafeLeft.addEventListener('touchstart', (e) => { e.preventDefault(); const v = getStrafeVelocity(1); sendVelocity(...v); });
+        strafeLeft.addEventListener('touchend', stopMoving);
+        strafeLeft.addEventListener('touchcancel', stopMoving);
+    }
+    if (strafeRight) {
+        strafeRight.addEventListener('mousedown', () => { const v = getStrafeVelocity(-1); sendVelocity(...v); });
+        strafeRight.addEventListener('mouseup', stopMoving);
+        strafeRight.addEventListener('mouseleave', stopMoving);
+        strafeRight.addEventListener('touchstart', (e) => { e.preventDefault(); const v = getStrafeVelocity(-1); sendVelocity(...v); });
+        strafeRight.addEventListener('touchend', stopMoving);
+        strafeRight.addEventListener('touchcancel', stopMoving);
+    }
+
     document.getElementById('btn-stop').addEventListener('click', stopMoving);
+}
+
+function toggleStrafeMode() {
+    strafeMode = !strafeMode;
+    const btn = document.getElementById('btn-strafe-toggle');
+    const sl = document.getElementById('btn-strafe-left');
+    const sr = document.getElementById('btn-strafe-right');
+    if (btn) {
+        btn.textContent = strafeMode ? 'Mode: Strafe' : 'Mode: Turn';
+        btn.classList.toggle('mode-turn', !strafeMode);
+    }
+    if (sl) sl.innerHTML = strafeMode ? '&#9664; Strafe L' : '&#8634; Turn L';
+    if (sr) sr.innerHTML = strafeMode ? 'Strafe R &#9654;' : 'Turn R &#8635;';
 }
 
 
@@ -461,8 +500,8 @@ function handleKeyDown(event) {
     switch (key) {
         case 'w': sendVelocity(1, 0, 0); break;
         case 's': sendVelocity(-1, 0, 0); break;
-        case 'a': sendVelocity(0, 1, 0); break;
-        case 'd': sendVelocity(0, -1, 0); break;
+        case 'a': strafeMode ? sendVelocity(0, 1, 0) : sendVelocity(0, 0, 1); break;
+        case 'd': strafeMode ? sendVelocity(0, -1, 0) : sendVelocity(0, 0, -1); break;
         case 'q': sendVelocity(0, 0, 1); break;
         case 'e': sendVelocity(0, 0, -1); break;
         case '1': setSpeed(1); break;
@@ -471,6 +510,9 @@ function handleKeyDown(event) {
         case ' ':
             event.preventDefault();
             stopMoving();
+            break;
+        case 'm':
+            toggleStrafeMode();
             break;
         case 'escape':
             toggleEstop();
