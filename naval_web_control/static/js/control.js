@@ -326,9 +326,12 @@ function toggleStrafeMode() {
 
 function setSpeed(level) {
     currentSpeed = level;
-    if (speedPub) {
-        speedPub.publish(new ROSLIB.Message({ data: level }));
-    }
+    // Use REST API (bypasses rosbridge Int32 issue)
+    fetch(`http://${window.location.hostname}:${window.location.port}/api/speed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: level })
+    }).catch(err => console.error('Speed error:', err));
     document.querySelectorAll('.btn-speed').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.getElementById('btn-speed-' + level);
     if (activeBtn) activeBtn.classList.add('active');
@@ -349,9 +352,11 @@ function setupSpeedButtons() {
 
 function toggleEstop() {
     estopActive = !estopActive;
-    if (estopPub) {
-        estopPub.publish(new ROSLIB.Message({ data: estopActive }));
-    }
+    fetch(`http://${window.location.hostname}:${window.location.port}/api/estop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: estopActive })
+    }).catch(err => console.error('Estop error:', err));
     if (estopActive) {
         stopMoving();
         el.btnEstop.textContent = 'RELEASE E-STOP';
@@ -465,17 +470,21 @@ function setupTiltSliders() {
     if (tiltFront) {
         tiltFront.addEventListener('input', (e) => { tiltFrontVal.textContent = e.target.value; });
         tiltFront.addEventListener('change', (e) => {
-            if (tiltFrontPub) {
-                tiltFrontPub.publish(new ROSLIB.Message({ data: parseInt(e.target.value) }));
-            }
+            fetch(`http://${window.location.hostname}:${window.location.port}/api/tilt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ side: 'front', angle: parseInt(e.target.value) })
+            }).catch(err => console.error('Tilt error:', err));
         });
     }
     if (tiltRear) {
         tiltRear.addEventListener('input', (e) => { tiltRearVal.textContent = e.target.value; });
         tiltRear.addEventListener('change', (e) => {
-            if (tiltRearPub) {
-                tiltRearPub.publish(new ROSLIB.Message({ data: parseInt(e.target.value) }));
-            }
+            fetch(`http://${window.location.hostname}:${window.location.port}/api/tilt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ side: 'rear', angle: parseInt(e.target.value) })
+            }).catch(err => console.error('Tilt error:', err));
         });
     }
 }

@@ -13,7 +13,7 @@ import os
 import threading
 import rclpy
 from rclpy.node import Node
-from flask import Flask, render_template, send_from_directory, jsonify
+from flask import Flask, render_template, send_from_directory, jsonify, request
 try:
     from flask_cors import CORS
     HAS_CORS = True
@@ -59,6 +59,13 @@ class NavalWebServer(Node):
         if HAS_CORS:
             CORS(self.app)
 
+        # ROS publishers for speed/estop (bypass rosbridge)
+        from std_msgs.msg import Int32, Bool
+        self.speed_pub = self.create_publisher(Int32, '/naval/speed', 10)
+        self.estop_pub = self.create_publisher(Bool, '/naval/estop', 10)
+        self.tilt_front_pub = self.create_publisher(Int32, '/naval/tilt_front', 10)
+        self.tilt_rear_pub = self.create_publisher(Int32, '/naval/tilt_rear', 10)
+
         self._setup_routes()
 
         self.get_logger().info(
@@ -86,6 +93,46 @@ class NavalWebServer(Node):
                 'rosbridge_port': self.rosbridge_port,
                 'cam_server_port': self.cam_server_port
             })
+
+        @self.app.route('/api/speed', methods=['POST', 'OPTIONS'])
+        def set_speed():
+            if request.method == 'OPTIONS':
+                return '', 204
+            from std_msgs.msg import Int32
+            data = request.get_json(silent=True) or {}
+            level = int(data.get('level', 1))
+            msg = Int32()
+            msg.data = level
+            self.speed_pub.publish(msg)
+            return jsonify({'success': True, 'level': level})
+
+        @self.app.route('/api/estop', methods=['POST', 'OPTIONS'])
+        def set_estop():
+            if request.method == 'OPTIONS':
+                return '', 204
+            from std_msgs.msg import Bool
+            data = request.get_json(silent=True) or {}
+            active = bool(data.get('active', False))
+            msg = Bool()
+            msg.data = active
+            self.estop_pub.publish(msg)
+            return jsonify({'success': True, 'active': active})
+
+        @self.app.route('/api/tilt', methods=['POST', 'OPTIONS'])
+        def set_tilt():
+            if request.method == 'OPTIONS':
+                return '', 204
+            from std_msgs.msg import Int32
+            data = request.get_json(silent=True) or {}
+            side = data.get('side', 'front')
+            angle = int(data.get('angle', 0))
+            msg = Int32()
+            msg.data = angle
+            if side == 'front':
+                self.tilt_front_pub.publish(msg)
+            else:
+                self.tilt_rear_pub.publish(msg)
+            return jsonify({'success': True, 'side': side, 'angle': angle})
 
         @self.app.route('/health')
         def health():
