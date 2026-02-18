@@ -66,7 +66,9 @@
             <div class="right-panel">
                 <!-- Obstacle Status -->
                 <div class="panel obstacle-panel">
-                    <h2>Obstacle Avoidance</h2>
+                    <h2>Obstacle Avoidance
+                        <button id="btn-obstacle-toggle" class="btn btn-obstacle-toggle obstacle-off" onclick="toggleObstacle()" title="Toggle Obstacle Avoidance (O)">OFF</button>
+                    </h2>
                     <div class="obstacle-display">
                         <div class="obstacle-state" id="obstacle-state">No LiDAR</div>
                         <div class="obstacle-distances">
@@ -149,6 +151,7 @@
                         <kbd>Q</kbd> Rotate Left
                         <kbd>E</kbd> Rotate Right
                         <kbd>M</kbd> Strafe/Turn
+                        <kbd>O</kbd> Obstacle Toggle
                         <kbd>1-3</kbd> Speed
                         <kbd>Space</kbd> Stop
                         <kbd>Esc</kbd> E-STOP

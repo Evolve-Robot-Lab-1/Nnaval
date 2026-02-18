@@ -212,6 +212,27 @@ main {
     border-left: 3px solid var(--secondary-color);
 }
 
+.obstacle-panel h2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-obstacle-toggle {
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    background-color: var(--secondary-color);
+    color: white;
+    border-radius: 12px;
+    min-width: 44px;
+}
+
+.btn-obstacle-toggle.obstacle-off {
+    background-color: #666;
+    color: #ccc;
+}
+
 .obstacle-display {
     display: flex;
     flex-direction: column;

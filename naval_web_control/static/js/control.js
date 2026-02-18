@@ -30,6 +30,7 @@ let tiltRearPub = null;
 let currentSpeed = 1;
 let estopActive = false;
 let strafeMode = true;  // true=strafe (lateral), false=turn (rotate)
+let obstacleAvoidEnabled = false;  // false=direct /cmd_vel (default), true=use /cmd_vel_raw
 let activeKeys = new Set();
 let camBaseUrl = '';
 
@@ -108,6 +109,8 @@ function updateRosStatus(connected) {
     el.rosStatus.className = 'status-indicator ' + (connected ? 'connected' : 'disconnected');
 }
 
+let cmdVelDirectPub = null;
+
 function setupPublishers() {
     cmdVelPub = new ROSLIB.Topic({
         ros: ros,
@@ -115,6 +118,14 @@ function setupPublishers() {
         messageType: 'geometry_msgs/Twist'
     });
     cmdVelPub.advertise();
+
+    // Direct /cmd_vel publisher (bypass obstacle avoidance)
+    cmdVelDirectPub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/cmd_vel',
+        messageType: 'geometry_msgs/Twist'
+    });
+    cmdVelDirectPub.advertise();
 
     speedPub = new ROSLIB.Topic({
         ros: ros,
@@ -225,7 +236,7 @@ function sendVelocity(lx, ly, az) {
         linear:  { x: lx, y: ly, z: 0 },
         angular: { x: 0,  y: 0,  z: az }
     });
-    cmdVelPub.publish(twist);
+    if (cmdVelPub) cmdVelPub.publish(twist);
     updateDirectionDisplay(lx, ly, az);
 }
 
@@ -304,6 +315,29 @@ function setupMovementButtons() {
     }
 
     document.getElementById('btn-stop').addEventListener('click', stopMoving);
+}
+
+function toggleObstacle() {
+    obstacleAvoidEnabled = !obstacleAvoidEnabled;
+    const btn = document.getElementById('btn-obstacle-toggle');
+    const panel = document.querySelector('.obstacle-panel');
+    if (btn) {
+        btn.textContent = obstacleAvoidEnabled ? 'ON' : 'OFF';
+        btn.classList.toggle('obstacle-off', !obstacleAvoidEnabled);
+    }
+    if (panel) {
+        panel.style.borderLeftColor = obstacleAvoidEnabled ? 'var(--secondary-color)' : '#666';
+    }
+    if (!obstacleAvoidEnabled) {
+        el.obstacleState.textContent = 'DISABLED';
+        el.obstacleState.style.color = '#666';
+    }
+    // Tell obstacle avoidance node to stop/start publishing to /cmd_vel
+    fetch(`http://${window.location.hostname}:${window.location.port}/api/obstacle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: obstacleAvoidEnabled })
+    }).catch(err => console.error('Obstacle toggle error:', err));
 }
 
 function toggleStrafeMode() {
@@ -522,6 +556,9 @@ function handleKeyDown(event) {
             break;
         case 'm':
             toggleStrafeMode();
+            break;
+        case 'o':
+            toggleObstacle();
             break;
         case 'escape':
             toggleEstop();

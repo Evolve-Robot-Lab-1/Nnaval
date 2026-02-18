@@ -28,7 +28,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from enum import Enum
 import math
 
@@ -88,6 +88,9 @@ class NavalObstacleAvoidance(Node):
         self.right_sector_avg = float('inf')
         self.last_scan_time = None
 
+        # Enabled flag - starts DISABLED, web UI toggles ON when needed
+        self.enabled = False
+
         # Teleop command
         self.latest_cmd = Twist()
 
@@ -102,6 +105,8 @@ class NavalObstacleAvoidance(Node):
             LaserScan, '/scan', self.scan_callback, scan_qos)
         self.cmd_sub = self.create_subscription(
             Twist, '/cmd_vel_raw', self.cmd_callback, 10)
+        self.enable_sub = self.create_subscription(
+            Bool, '/naval/obstacle_enabled', self.enable_callback, 10)
 
         # Publishers
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -204,6 +209,10 @@ class NavalObstacleAvoidance(Node):
     # === State Machine ===
 
     def control_loop(self):
+        if not self.enabled:
+            # Disabled: pure passthrough, no obstacle checking
+            self.cmd_pub.publish(self.latest_cmd)
+            return
         if not self._is_scan_valid():
             if self.state != AvoidanceState.DRIVING:
                 self._publish_stop()
@@ -340,6 +349,15 @@ class NavalObstacleAvoidance(Node):
 
     def cmd_callback(self, msg):
         self.latest_cmd = msg
+
+    def enable_callback(self, msg):
+        if self.enabled != msg.data:
+            self.enabled = msg.data
+            self.get_logger().info(
+                f'Obstacle avoidance {"ENABLED" if self.enabled else "DISABLED"}')
+            if self.enabled:
+                self.state = AvoidanceState.DRIVING
+                self.avoidance_attempts = 0
 
     def publish_status(self):
         msg = String()

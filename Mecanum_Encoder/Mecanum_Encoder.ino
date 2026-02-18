@@ -4,8 +4,8 @@
  *
  * M1 (FL): EN=2,  IN1=22, IN2=23,  CHA=18, CHB=30
  * M2 (FR): EN=3,  IN1=24, IN2=25,  CHA=19, CHB=31
- * M3 (BL): EN=4,  IN1=26, IN2=27,  CHA=20, CHB=32
- * M4 (BR): EN=5,  IN1=28, IN2=29,  CHA=21, CHB=33
+ * M3 (BL): EN=5,  IN1=28, IN2=29,  CHA=21, CHB=33
+ * M4 (BR): EN=4,  IN1=26, IN2=27,  CHA=20, CHB=32
  *
  * Camera Tilt Servos:
  *   Front camera: Pin 9  (TODO: update when wired)
@@ -16,7 +16,7 @@
  *   L = Strafe Left   R = Strafe Right
  *   W = Rotate Left   U = Rotate Right
  *   S = Stop
- *   1 = Slow (250 t/s)  2 = Medium (320 t/s)  3 = Fast (auto-calibrate)
+ *   1 = Slow (250 t/s)  2 = Medium (300 t/s)  3 = Fast (350 t/s)
  *   P = Print encoder ticks
  *   C = Clear encoder ticks
  *   T<angle> = Front camera tilt (0-90 degrees)
@@ -41,19 +41,19 @@
 #define M2_CHA  19
 #define M2_CHB  31
 
-// M3 - Back Left
-#define M3_EN   4
-#define M3_IN1  26
-#define M3_IN2  27
-#define M3_CHA  20
-#define M3_CHB  32
+// M3 - Back Left (was physically wired as M4)
+#define M3_EN   5
+#define M3_IN1  28
+#define M3_IN2  29
+#define M3_CHA  21
+#define M3_CHB  33
 
-// M4 - Back Right
-#define M4_EN   5
-#define M4_IN1  28
-#define M4_IN2  29
-#define M4_CHA  21
-#define M4_CHB  33
+// M4 - Back Right (was physically wired as M3)
+#define M4_EN   4
+#define M4_IN1  26
+#define M4_IN2  27
+#define M4_CHA  20
+#define M4_CHB  32
 
 // Camera tilt servo pins (TODO: update when physically wired)
 #define SERVO_FRONT_PIN  9
@@ -74,7 +74,7 @@ bool moving = false;
 
 // Per-motor calibration: PWM multiplier to compensate for motor differences
 // M1(FL) is ~3x slower than others at same PWM, so it gets higher scale
-float motorCal[4] = {1.42, 1.0, 1.0, 1.0};  // M1=255/180, M2-M4 normal
+float motorCal[4] = {1.42, 1.0, 1.42, 1.3};  // M1=255, M2=180, M3=255, M4=234
 // Per-motor max speed (t/s) measured during calibration
 float motorMaxSpd[4] = {0, 0, 0, 0};
 
@@ -110,9 +110,9 @@ int serialBufIdx = 0;
 
 // --- Encoder ISRs ---
 void isrM1() { if (digitalRead(M1_CHB)) encM1++; else encM1--; }
-void isrM2() { if (digitalRead(M2_CHB)) encM2++; else encM2--; }
+void isrM2() { if (digitalRead(M2_CHB)) encM2--; else encM2++; }
 void isrM3() { if (digitalRead(M3_CHB)) encM3++; else encM3--; }
-void isrM4() { if (digitalRead(M4_CHB)) encM4++; else encM4--; }
+void isrM4() { if (digitalRead(M4_CHB)) encM4--; else encM4++; }
 
 // --- Motor drive ---
 void driveMotor(int mIdx, int dir, int pwm) {
@@ -165,7 +165,7 @@ void calcSpeeds() {
 }
 
 int motorStartPwm(int idx) {
-  return constrain((int)(basePwm * motorCal[idx]), 60, 255);
+  return constrain((int)(basePwm * motorCal[idx]), 100, 255);
 }
 
 void pidReset() {
@@ -188,7 +188,7 @@ void pidUpdate() {
       float dErr = err - lastErr[i];
       lastErr[i] = err;
       float out = Kp * err + Ki * errSum[i] + Kd * dErr;
-      pwmOut[i] = constrain(pwmOut[i] + (int)out, 60, 255);
+      pwmOut[i] = constrain(pwmOut[i] + (int)out, 100, 255);
       driveMotor(i, motorDir[i], pwmOut[i]);
     } else {
       pwmOut[i] = 0;
@@ -370,6 +370,25 @@ void processSerialLine(char* buf, int len) {
     return;
   }
 
+  // Single motor test: M<1-4><F/B>[PWM] e.g. M2F or M2F80
+  if ((cmd == 'M' || cmd == 'm') && len >= 3) {
+    int mIdx = buf[1] - '1';  // 0-3
+    char mDir = buf[2];
+    if (mIdx >= 0 && mIdx < 4 && (mDir == 'F' || mDir == 'f' || mDir == 'B' || mDir == 'b')) {
+      stopAll();
+      moving = false;
+      calibrating = false;
+      int dir = (mDir == 'F' || mDir == 'f') ? 1 : -1;
+      int pwm = (len > 3) ? atoi(&buf[3]) : 150;
+      pwm = constrain(pwm, 30, 255);
+      driveMotor(mIdx, dir, pwm);
+      Serial.print(">> Test M"); Serial.print(mIdx + 1);
+      Serial.print(dir > 0 ? " FWD" : " REV");
+      Serial.print(" PWM="); Serial.println(pwm);
+      return;
+    }
+  }
+
   // Single-char commands
   switch (cmd) {
     case 'F': case 'f':
@@ -409,14 +428,14 @@ void processSerialLine(char* buf, int len) {
       Serial.println(">> Speed: 250 t/s (slow)");
       break;
     case '2':
-      userTarget = 320;
+      userTarget = 300;
       if (moving && !calibrating) { targetSpeed = userTarget; pidReset(); }
-      Serial.println(">> Speed: 320 t/s (medium)");
+      Serial.println(">> Speed: 300 t/s (medium)");
       break;
     case '3':
-      userTarget = 0;
-      if (moving && !calibrating) { targetSpeed = 0; calibrating = true; calibMeasuring = false; calibStartTime = millis(); }
-      Serial.println(">> Speed: MAX (auto-calibrate)");
+      userTarget = 350;
+      if (moving && !calibrating) { targetSpeed = userTarget; pidReset(); }
+      Serial.println(">> Speed: 350 t/s (fast)");
       break;
     case 'P': case 'p':
       printEncoders();
@@ -453,7 +472,7 @@ void setup() {
 
   stopAll();
   Serial.println("=== Mecanum PID + Servo Tilt ===");
-  Serial.println("F/B/L/R/W/U/S  1=Slow 2=Med 3=Fast  P=Ticks C=Clear");
+  Serial.println("F/B/L/R/W/U/S  1=250 2=300 3=350  P=Ticks C=Clear");
   Serial.println("T<0-90>=Front tilt  G<0-90>=Rear tilt  CAL=Show/set cal");
   Serial.print(">> Motor cal: ");
   for (int i = 0; i < 4; i++) {

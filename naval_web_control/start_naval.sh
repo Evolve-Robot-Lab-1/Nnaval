@@ -6,8 +6,10 @@
 #   bash start_naval.sh --no-lidar         # without LiDAR
 #
 # This script:
-#   1. Starts the camera server in background (standalone, no ROS2)
-#   2. Launches ROS2 nodes (rosbridge + lidar + obstacle_avoidance + serial_bridge + web_server)
+#   1. Sources all required ROS2 workspaces
+#   2. Kills any old processes on ports 5000/8090/9090
+#   3. Starts the camera server in background (standalone, no ROS2)
+#   4. Launches ROS2 nodes (rosbridge + lidar + obstacle_avoidance + serial_bridge + web_server)
 
 set -e
 
@@ -24,9 +26,28 @@ echo "=== Naval Inspection Robot ==="
 echo "  LiDAR: $USE_LIDAR"
 echo ""
 
-# Kill any existing camera server
+# Source ROS2 workspaces
+source /opt/ros/humble/setup.bash
+# YDLiDAR driver lives in gripper_car_ws
+if [[ -f "$HOME/pi_ros_ws/gripper_car_ws/install/setup.bash" ]]; then
+    source "$HOME/pi_ros_ws/gripper_car_ws/install/setup.bash"
+fi
+# Naval workspace (overlays gripper_car_ws)
+if [[ -f "$HOME/naval_ws/install/setup.bash" ]]; then
+    source "$HOME/naval_ws/install/setup.bash"
+fi
+export ROS_DOMAIN_ID=0
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
+# Kill any old processes
+echo "[0/2] Cleaning up old processes..."
 pkill -f "naval_cam_server.py" 2>/dev/null || true
-sleep 0.5
+pkill -f "rosbridge_websocket" 2>/dev/null || true
+pkill -f "ydlidar_ros2_driver" 2>/dev/null || true
+pkill -f "naval_serial_bridge" 2>/dev/null || true
+pkill -f "naval_web_server" 2>/dev/null || true
+pkill -f "naval_obstacle_avoidance" 2>/dev/null || true
+sleep 1
 
 # Start camera server in background
 echo "[1/2] Starting camera server on port 8090..."

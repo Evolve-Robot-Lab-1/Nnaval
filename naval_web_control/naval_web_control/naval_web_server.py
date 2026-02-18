@@ -65,6 +65,7 @@ class NavalWebServer(Node):
         self.estop_pub = self.create_publisher(Bool, '/naval/estop', 10)
         self.tilt_front_pub = self.create_publisher(Int32, '/naval/tilt_front', 10)
         self.tilt_rear_pub = self.create_publisher(Int32, '/naval/tilt_rear', 10)
+        self.obstacle_enable_pub = self.create_publisher(Bool, '/naval/obstacle_enabled', 10)
 
         self._setup_routes()
 
@@ -133,6 +134,18 @@ class NavalWebServer(Node):
             else:
                 self.tilt_rear_pub.publish(msg)
             return jsonify({'success': True, 'side': side, 'angle': angle})
+
+        @self.app.route('/api/obstacle', methods=['POST', 'OPTIONS'])
+        def set_obstacle():
+            if request.method == 'OPTIONS':
+                return '', 204
+            from std_msgs.msg import Bool
+            data = request.get_json(silent=True) or {}
+            enabled = bool(data.get('enabled', True))
+            msg = Bool()
+            msg.data = enabled
+            self.obstacle_enable_pub.publish(msg)
+            return jsonify({'success': True, 'enabled': enabled})
 
         @self.app.route('/health')
         def health():
